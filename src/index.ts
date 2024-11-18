@@ -3,6 +3,7 @@ import express from 'express';
 import { DataSource } from 'typeorm';
 import { User } from './entity/User';
 import { Post } from './entity/Post';
+import { validate } from 'class-validator';
 
 const app = express();
 app.use(express.json());
@@ -34,11 +35,50 @@ const initializeDatabase = async () => {
 initializeDatabase();
 
 app.post('/users', async (req, res) => {
-// Crie o endpoint de users
+  const { firstName, lastName, email } = req.body;
+
+  const user = new User();
+  user.firstName = firstName;
+  user.lastName = lastName;
+  user.email = email;
+
+  try {
+    const errors = await validate(user);
+    if (errors.length > 0) {
+      return res.status(400).json({ errors });
+    }
+    const savedUser = await AppDataSource.manager.save(user);
+    return res.status(201).json(savedUser);
+  } catch (err) {
+    console.error("Error saving user:", err);
+    return res.status(500).send("Internal Server Error");
+  }
 });
 
 app.post('/posts', async (req, res) => {
-// Crie o endpoint de posts
+  const { title, description, userId } = req.body;
+
+  const user = await AppDataSource.manager.findOneBy(User, { id: userId });
+  if (user == null) {
+    return res.status(404).send("Error creating post: User not found");
+  }
+
+  const post = new Post();
+  post.title = title;
+  post.description = description;
+  post.userId = userId;
+
+  try {
+    const errors = await validate(post);
+    if (errors.length > 0) {
+      return res.status(400).json({ errors });
+    }
+    const savedPost = await AppDataSource.manager.save(post);
+    return res.status(201).json(savedPost);
+  } catch (err) {
+    console.error("Error saving post:", err);
+    res.status(500).send("Internal Server Error");
+  }
 });
 
 const PORT = process.env.PORT || 3000;
